@@ -6,7 +6,10 @@ from src.config import AppSettings
 from src.domain.models import (
     ApiUsage,
     ExtractedConcept,
+    JobRecord,
     JobStatus,
+    PdfChunk,
+    ProcessingPlan,
     ProcessingResult,
     ProgressCallback,
     UserIdentity,
@@ -30,8 +33,37 @@ class CatalogProcessingService:
         self._chunker = chunker
         self._validator = validator
 
+    @property
+    def model(self) -> str:
+        return self._settings.model
+
     def validate_api_key(self, api_key: str) -> None:
         self._extractor(api_key).validate_credentials()
+
+    def preview(
+        self,
+        *,
+        user: UserIdentity,
+        pdf_bytes: bytes,
+        filename: str,
+    ) -> ProcessingPlan:
+        """Calcula el consumo pendiente consultando el caché, sin llamar a OpenAI."""
+        chunks, job, pdf_hash = self._prepare_job(
+            user=user,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+        )
+        cached_blocks = sum(
+            self._repository.get_completed_block(job.job_id, chunk) is not None
+            for chunk in chunks
+        )
+        return ProcessingPlan(
+            pdf_hash=pdf_hash,
+            total_pages=chunks[-1].page_end,
+            total_blocks=len(chunks),
+            cached_blocks=cached_blocks,
+            pending_blocks=len(chunks) - cached_blocks,
+        )
 
     def process(
         self,
@@ -42,21 +74,10 @@ class CatalogProcessingService:
         filename: str,
         progress: ProgressCallback | None = None,
     ) -> ProcessingResult:
-        chunks = self._chunker.split(pdf_bytes)
-        pdf_hash = self._chunker.file_hash(pdf_bytes)
-        cache_schema = (
-            f"{self._settings.schema_version}"
-            f"-c{self._settings.chunk_size}"
-            f"-o{self._settings.chunk_overlap}"
-        )
-        job = self._repository.get_or_create_job(
-            user_id=user.user_id,
-            pdf_hash=pdf_hash,
+        chunks, job, _ = self._prepare_job(
+            user=user,
+            pdf_bytes=pdf_bytes,
             filename=filename,
-            model=self._settings.model,
-            detail=self._settings.pdf_detail,
-            schema_version=cache_schema,
-            total_blocks=len(chunks),
         )
         extractor = self._extractor(api_key)
         concepts: list[ExtractedConcept] = []
@@ -107,6 +128,31 @@ class CatalogProcessingService:
             cached_blocks=cached_blocks,
             processed_blocks=processed_blocks,
         )
+
+    def _prepare_job(
+        self,
+        *,
+        user: UserIdentity,
+        pdf_bytes: bytes,
+        filename: str,
+    ) -> tuple[list[PdfChunk], JobRecord, str]:
+        chunks = self._chunker.split(pdf_bytes)
+        pdf_hash = self._chunker.file_hash(pdf_bytes)
+        cache_schema = (
+            f"{self._settings.schema_version}"
+            f"-c{self._settings.chunk_size}"
+            f"-o{self._settings.chunk_overlap}"
+        )
+        job = self._repository.get_or_create_job(
+            user_id=user.user_id,
+            pdf_hash=pdf_hash,
+            filename=filename,
+            model=self._settings.model,
+            detail=self._settings.pdf_detail,
+            schema_version=cache_schema,
+            total_blocks=len(chunks),
+        )
+        return chunks, job, pdf_hash
 
     def _extractor(self, api_key: str) -> OpenAICatalogExtractor:
         return OpenAICatalogExtractor(
