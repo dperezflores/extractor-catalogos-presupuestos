@@ -2,7 +2,7 @@ from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
 
-from src.domain.models import CatalogRow, ExtractionStatus
+from src.domain.models import CatalogRow, ExcelSearchField, ExtractionStatus
 from src.services.excel_service import ExcelService
 from src.services.matching_service import ConceptMatcher
 
@@ -26,6 +26,7 @@ def input_excel() -> bytes:
     sheet = workbook.active
     sheet["A1"] = "Clave"
     sheet["B1"] = "Concepto"
+    sheet["A2"] = "A-01"
     sheet["B2"] = "Suministro y colocación de concreto hidráulico"
     output = BytesIO()
     workbook.save(output)
@@ -48,3 +49,15 @@ def test_optional_excel_gets_price_column() -> None:
     assert sheet["C2"].value == 1450.75
     assert preview.iloc[0]["Estado"] == "Encontrado"
 
+
+def test_optional_excel_can_search_by_key_column() -> None:
+    content, preview = ExcelService().cross_reference_excel(
+        input_excel(),
+        sample_catalog(),
+        ConceptMatcher(),
+        ExcelSearchField.KEY,
+    )
+    sheet = load_workbook(BytesIO(content)).active
+    assert sheet["C2"].value == 1450.75
+    assert preview.iloc[0]["Campo de búsqueda"] == "Clave (columna A)"
+    assert preview.iloc[0]["Valor buscado"] == "A-01"
