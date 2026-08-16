@@ -11,6 +11,8 @@ from src.domain.models import ProcessingResult, UserIdentity
 
 
 class AppComponents:
+    PERCENTAGE_COLUMNS = ("Nivel de confianza", "Coincidencia")
+
     @staticmethod
     def header() -> None:
         st.markdown(
@@ -71,15 +73,22 @@ class AppComponents:
     @staticmethod
     def data_table(dataframe: pd.DataFrame, title: str) -> None:
         st.subheader(title)
+        display_dataframe = dataframe.copy()
+        for column_name in AppComponents.PERCENTAGE_COLUMNS:
+            if column_name in display_dataframe.columns:
+                display_dataframe[column_name] = (
+                    pd.to_numeric(display_dataframe[column_name], errors="coerce") * 100
+                )
+
         available_config = {
             "Cantidad": st.column_config.NumberColumn(format="%.4f"),
             "Precio unitario": st.column_config.NumberColumn(format="$ %.2f"),
             "Precio unitario (PDF)": st.column_config.NumberColumn(format="$ %.2f"),
             "Nivel de confianza": st.column_config.ProgressColumn(
-                min_value=0.0, max_value=1.0, format="%.0f%%"
+                min_value=0.0, max_value=100.0, format="%.0f%%"
             ),
             "Coincidencia": st.column_config.ProgressColumn(
-                min_value=0.0, max_value=1.0, format="%.0f%%"
+                min_value=0.0, max_value=100.0, format="%.0f%%"
             ),
         }
         column_config = {
@@ -88,7 +97,7 @@ class AppComponents:
             if name in dataframe.columns
         }
         st.dataframe(
-            dataframe,
+            display_dataframe,
             use_container_width=True,
             hide_index=True,
             column_config=column_config,
