@@ -22,6 +22,7 @@ CATALOG_COLUMNS = [
     "Precio unitario",
     "Estado de extracción",
     "Nivel de confianza",
+    "Ubicación en el PDF",
 ]
 
 
@@ -42,6 +43,7 @@ class ExcelService:
                     "Precio unitario": row.unit_price,
                     "Estado de extracción": row.status.value,
                     "Nivel de confianza": row.confidence / 100,
+                    "Ubicación en el PDF": row.pdf_location,
                 }
                 for row in catalog
             ],
@@ -69,7 +71,7 @@ class ExcelService:
                 )
 
         if len(dataframe) > 0:
-            table = Table(displayName="CatalogoExtraido", ref=f"A1:G{len(dataframe) + 1}")
+            table = Table(displayName="CatalogoExtraido", ref=f"A1:H{len(dataframe) + 1}")
             table.tableStyleInfo = TableStyleInfo(
                 name="TableStyleMedium2",
                 showFirstColumn=False,
@@ -79,7 +81,16 @@ class ExcelService:
             )
             sheet.add_table(table)
 
-        widths = {"A": 22, "B": 90, "C": 14, "D": 16, "E": 18, "F": 22, "G": 20}
+        widths = {
+            "A": 22,
+            "B": 90,
+            "C": 14,
+            "D": 16,
+            "E": 18,
+            "F": 22,
+            "G": 20,
+            "H": 24,
+        }
         for column, width in widths.items():
             sheet.column_dimensions[column].width = width
         sheet.freeze_panes = "A2"

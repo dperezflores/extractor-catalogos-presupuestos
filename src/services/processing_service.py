@@ -5,9 +5,9 @@ from __future__ import annotations
 from src.config import AppSettings
 from src.domain.models import (
     ApiUsage,
-    ExtractedConcept,
     JobRecord,
     JobStatus,
+    LocatedConcept,
     PdfChunk,
     ProcessingPlan,
     ProcessingResult,
@@ -110,7 +110,7 @@ class CatalogProcessingService:
             filename=filename,
         )
         extractor = self._extractor(api_key)
-        concepts: list[ExtractedConcept] = []
+        concepts: list[LocatedConcept] = []
         total_usage = ApiUsage()
         current_usage = ApiUsage()
         cached_blocks = 0
@@ -120,7 +120,10 @@ class CatalogProcessingService:
             cached = self._repository.get_completed_block(job.job_id, chunk)
             if cached is not None:
                 block, usage = cached
-                concepts.extend(block.conceptos)
+                concepts.extend(
+                    LocatedConcept(item, chunk.page_start, chunk.page_end)
+                    for item in block.conceptos
+                )
                 total_usage += usage
                 cached_blocks += 1
                 if progress:
@@ -142,7 +145,10 @@ class CatalogProcessingService:
             except Exception as exc:
                 self._repository.save_block_error(job.job_id, chunk, str(exc))
                 raise
-            concepts.extend(result.block.conceptos)
+            concepts.extend(
+                LocatedConcept(item, chunk.page_start, chunk.page_end)
+                for item in result.block.conceptos
+            )
             total_usage += result.usage
             current_usage += result.usage
             processed_blocks += 1

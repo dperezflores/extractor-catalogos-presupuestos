@@ -68,6 +68,15 @@ class ExtractedBlock(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
+class LocatedConcept:
+    """Concepto extraído acompañado por el rango del bloque que lo originó."""
+
+    concept: ExtractedConcept
+    page_start: int
+    page_end: int
+
+
+@dataclass(frozen=True, slots=True)
 class UserIdentity:
     user_id: str
     name: str
@@ -94,6 +103,17 @@ class CatalogRow:
     confidence: int
     readable: bool = True
     note: str = ""
+    source_page_start: int | None = None
+    source_page_end: int | None = None
+
+    @property
+    def pdf_location(self) -> str:
+        if self.status is ExtractionStatus.EXTRACTED or self.source_page_start is None:
+            return ""
+        page_end = self.source_page_end or self.source_page_start
+        if self.source_page_start == page_end:
+            return f"Página {self.source_page_start}"
+        return f"Páginas {self.source_page_start}–{page_end}"
 
 
 @dataclass(frozen=True, slots=True)
