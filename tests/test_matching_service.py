@@ -29,3 +29,20 @@ def test_numeric_difference_does_not_assign_price() -> None:
     assert result.status in {"Revisar", "No localizado"}
     assert result.unit_price is None
 
+
+def test_key_match_ignores_case_and_separators() -> None:
+    result = ConceptMatcher().match_key(
+        "a 01",
+        [row("Suministro de tubería")],
+    )
+    assert result.status == "Encontrado"
+    assert result.unit_price == 100.0
+
+
+def test_key_match_does_not_assign_a_similar_key() -> None:
+    result = ConceptMatcher().match_key(
+        "A-02",
+        [row("Suministro de tubería")],
+    )
+    assert result.status == "No localizado"
+    assert result.unit_price is None
