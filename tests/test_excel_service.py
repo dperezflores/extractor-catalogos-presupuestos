@@ -40,6 +40,18 @@ def test_catalog_excel_has_expected_columns() -> None:
     assert sheet["G1"].value == "Nivel de confianza"
 
 
+def test_catalog_excel_replaces_illegal_control_characters() -> None:
+    catalog = sample_catalog()
+    catalog[0].description = "Suministro y colocación\x0bde base hidráulica"
+    catalog[0].unit = "m\x003"
+
+    content = ExcelService().catalog_to_excel(catalog)
+    sheet = load_workbook(BytesIO(content)).active
+
+    assert sheet["B2"].value == "Suministro y colocación de base hidráulica"
+    assert sheet["C2"].value == "m 3"
+
+
 def test_optional_excel_gets_price_column() -> None:
     content, preview = ExcelService().cross_reference_excel(
         input_excel(), sample_catalog(), ConceptMatcher()
