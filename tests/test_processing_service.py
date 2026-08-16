@@ -37,6 +37,7 @@ def test_preview_reports_only_blocks_missing_from_cache(tmp_path) -> None:
     assert initial.total_blocks == 2
     assert initial.cached_blocks == 0
     assert initial.pending_blocks == 2
+    assert initial.estimate_sample_blocks == 0
 
     job = repository.get_or_create_job(
         user_id=user.user_id,
@@ -59,3 +60,19 @@ def test_preview_reports_only_blocks_missing_from_cache(tmp_path) -> None:
     resumed = service.preview(user=user, pdf_bytes=pdf, filename="presupuesto.pdf")
     assert resumed.cached_blocks == 1
     assert resumed.pending_blocks == 1
+    assert resumed.estimated_input_tokens == 100
+    assert resumed.estimated_output_tokens == 20
+    assert resumed.estimated_cost_usd == 0.000044
+    assert resumed.estimate_sample_blocks == 1
+
+
+def test_cost_estimate_matches_document_usage(tmp_path) -> None:
+    settings = AppSettings()
+    service = CatalogProcessingService(
+        settings=settings,
+        repository=SqlCheckpointRepository(f"sqlite:///{tmp_path / 'cost.db'}"),
+        chunker=PdfChunker(settings.chunk_size, settings.chunk_overlap),
+        validator=CatalogValidator(),
+    )
+
+    assert service._calculate_cost(ApiUsage(590_413, 271_282)) == 0.443621

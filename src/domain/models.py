@@ -110,6 +110,13 @@ class ApiUsage:
 
 
 @dataclass(frozen=True, slots=True)
+class UsageBaseline:
+    input_tokens_per_block: float
+    output_tokens_per_block: float
+    sample_blocks: int
+
+
+@dataclass(frozen=True, slots=True)
 class BlockExtractionResult:
     block: ExtractedBlock
     usage: ApiUsage
@@ -144,8 +151,11 @@ class ProcessingResult:
     job: JobRecord
     catalog: list[CatalogRow]
     usage: ApiUsage
+    current_usage: ApiUsage
     cached_blocks: int
     processed_blocks: int
+    estimated_document_cost_usd: float = 0.0
+    estimated_current_cost_usd: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +165,12 @@ class ProcessingPlan:
     total_blocks: int
     cached_blocks: int
     pending_blocks: int
+    estimated_input_tokens: int = 0
+    estimated_output_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+    estimated_cost_low_usd: float = 0.0
+    estimated_cost_high_usd: float = 0.0
+    estimate_sample_blocks: int = 0
 
 
 ProgressCallback = Callable[[int, int, str], None]
