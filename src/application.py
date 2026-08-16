@@ -27,9 +27,15 @@ from src.services.validation_service import CatalogValidator
 from src.ui.components import AppComponents
 from src.ui.style_loader import StyleLoader
 
+REPOSITORY_CACHE_VERSION = "usage-baseline-v1"
+
 
 @st.cache_resource(show_spinner=False)
-def _repository(database_url: str) -> SqlCheckpointRepository:
+def _repository(
+    database_url: str, cache_version: str
+) -> SqlCheckpointRepository:
+    """Versiona el recurso para no reutilizar instancias de clases anteriores."""
+    del cache_version
     return SqlCheckpointRepository(database_url)
 
 
@@ -54,7 +60,10 @@ class CatalogApplication:
             self._render_unauthorized(user, auth)
             return
 
-        repository = _repository(settings.database_url)
+        repository = _repository(
+            settings.database_url,
+            REPOSITORY_CACHE_VERSION,
+        )
         processing_service = CatalogProcessingService(
             settings=settings,
             repository=repository,
