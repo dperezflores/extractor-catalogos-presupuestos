@@ -10,7 +10,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from src.domain.models import CatalogRow
+from src.domain.models import CatalogRow, ExcelSearchField
 from src.services.matching_service import ConceptMatcher
 
 CATALOG_COLUMNS = [
@@ -100,10 +100,12 @@ class ExcelService:
         excel_bytes: bytes,
         catalog: list[CatalogRow],
         matcher: ConceptMatcher,
+        search_field: ExcelSearchField = ExcelSearchField.DESCRIPTION,
     ) -> tuple[bytes, pd.DataFrame]:
         workbook = load_workbook(BytesIO(excel_bytes))
         sheet = workbook.active
-        header_row = self._detect_header_row(sheet)
+        search_column = 1 if search_field is ExcelSearchField.KEY else 2
+        header_row = self._detect_header_row(sheet, search_field)
         output_column = sheet.max_column + 1
         header = sheet.cell(row=header_row, column=output_column, value="Precio unitario (PDF)")
         source_header = sheet.cell(row=header_row, column=max(1, output_column - 1))
@@ -114,10 +116,14 @@ class ExcelService:
 
         preview_rows: list[dict[str, object]] = []
         for row_number in range(header_row + 1, sheet.max_row + 1):
-            concept = str(sheet.cell(row=row_number, column=2).value or "").strip()
-            if not concept:
+            query = str(sheet.cell(row=row_number, column=search_column).value or "").strip()
+            if not query:
                 continue
-            result = matcher.match(concept, catalog)
+            result = (
+                matcher.match_key(query, catalog)
+                if search_field is ExcelSearchField.KEY
+                else matcher.match(query, catalog)
+            )
             price_cell = sheet.cell(row=row_number, column=output_column)
             if result.status == "Encontrado" and result.unit_price is not None:
                 price_cell.value = result.unit_price
@@ -126,7 +132,8 @@ class ExcelService:
                 price_cell.value = None
             preview_rows.append(
                 {
-                    "Concepto buscado": concept,
+                    "Campo de búsqueda": search_field.value,
+                    "Valor buscado": query,
                     "Precio unitario (PDF)": result.unit_price
                     if result.status == "Encontrado"
                     else None,
@@ -141,10 +148,15 @@ class ExcelService:
         return output.getvalue(), pd.DataFrame(preview_rows)
 
     @staticmethod
-    def _detect_header_row(sheet) -> int:
+    def _detect_header_row(sheet, search_field: ExcelSearchField) -> int:
+        column = 1 if search_field is ExcelSearchField.KEY else 2
+        expected = ("clave", "codigo") if search_field is ExcelSearchField.KEY else (
+            "concepto",
+            "descrip",
+        )
         for row_number in range(1, min(sheet.max_row, 20) + 1):
-            value = str(sheet.cell(row=row_number, column=2).value or "").strip().lower()
-            if "concepto" in value or "descrip" in value:
+            value = str(sheet.cell(row=row_number, column=column).value or "").strip().lower()
+            if any(term in value for term in expected):
                 return row_number
         return 1
 

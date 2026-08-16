@@ -62,9 +62,29 @@ class ConceptMatcher:
             status="Encontrado" if score >= 93 else "Revisar",
         )
 
+    def match_key(self, query: str, catalog: list[CatalogRow]) -> MatchResult:
+        normalized_query = self._normalize_key(query)
+        if not normalized_query:
+            return MatchResult(unit_price=None)
+
+        for row in catalog:
+            if row.unit_price is None or not row.key:
+                continue
+            if self._normalize_key(row.key) == normalized_query:
+                return MatchResult(
+                    unit_price=row.unit_price,
+                    matched_description=row.description,
+                    score=100.0,
+                    status="Encontrado",
+                )
+        return MatchResult(unit_price=None)
+
+    @staticmethod
+    def _normalize_key(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
     @staticmethod
     def _critical_numbers_match(left: str, right: str) -> bool:
         numbers_left = set(re.findall(r"\d+(?:[.,]\d+)?", left))
         numbers_right = set(re.findall(r"\d+(?:[.,]\d+)?", right))
         return numbers_left == numbers_right
-

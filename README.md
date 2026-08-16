@@ -7,12 +7,13 @@ Aplicación multiusuario en Streamlit para leer visualmente presupuestos escanea
 - Autenticación con Google mediante OpenID Connect.
 - Lista privada de correos autorizados.
 - API key individual, almacenada únicamente durante la sesión.
-- PDF obligatorio y Excel de búsqueda opcional.
+- PDF obligatorio y Excel de búsqueda opcional por clave (A) o descripción (B).
 - Extracción visual con `gpt-5.6-luna` y detalle alto.
 - División del PDF en bloques con traslape configurable.
 - Checkpoints por usuario, PDF y bloque.
 - Reanudación sin reprocesar bloques terminados.
 - Validaciones deterministas sin consumo adicional de API.
+- Advertencia y confirmación previa cuando existen bloques que consumirán API.
 - Vista previa del catálogo y del cruce opcional.
 - Descarga del catálogo completo y del Excel con precios.
 - SQLite para desarrollo y PostgreSQL para despliegue persistente.

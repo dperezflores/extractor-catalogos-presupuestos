@@ -11,7 +11,12 @@ import streamlit as st
 from openai import APIConnectionError, AuthenticationError, RateLimitError
 
 from src.config import AppSettings
-from src.domain.models import ProcessingResult, UserIdentity
+from src.domain.models import (
+    ExcelSearchField,
+    ProcessingPlan,
+    ProcessingResult,
+    UserIdentity,
+)
 from src.repositories.checkpoint_repository import SqlCheckpointRepository
 from src.services.auth_service import AuthenticationService
 from src.services.excel_service import ExcelService
@@ -176,15 +181,68 @@ class CatalogApplication:
             excel_file = st.file_uploader(
                 "Conceptos para buscar (opcional)",
                 type=["xlsx"],
-                help="Los conceptos deben encontrarse en la columna B.",
+                help="La clave debe estar en A y el concepto o descripción en B.",
             )
 
-        process_clicked = st.button(
-            "Procesar presupuesto",
+        search_field = ExcelSearchField.DESCRIPTION
+        if excel_file is not None:
+            selected_search_field = st.radio(
+                "Buscar los precios usando",
+                options=[field.value for field in ExcelSearchField],
+                index=1,
+                horizontal=True,
+                help=(
+                    "Por clave se exige coincidencia exacta, ignorando mayúsculas y "
+                    "separadores. Por descripción se utiliza coincidencia textual."
+                ),
+            )
+            search_field = ExcelSearchField(selected_search_field)
+
+        pdf_hash = PdfChunker.file_hash(pdf_file.getvalue()) if pdf_file is not None else ""
+        plan = st.session_state.get("processing_plan")
+        if isinstance(plan, ProcessingPlan) and plan.pdf_hash != pdf_hash:
+            st.session_state.pop("processing_plan", None)
+            plan = None
+
+        preview_clicked = st.button(
+            "Revisar consumo antes de procesar",
             type="primary",
             use_container_width=True,
             disabled=pdf_file is None,
         )
+        if preview_clicked and pdf_file is not None:
+            try:
+                plan = processing_service.preview(
+                    user=user,
+                    pdf_bytes=pdf_file.getvalue(),
+                    filename=pdf_file.name,
+                )
+            except PdfProcessingError as exc:
+                st.error(str(exc))
+                plan = None
+            except Exception as exc:
+                st.error(self._safe_error(exc))
+                plan = None
+            if plan is not None:
+                st.session_state["processing_plan"] = plan
+
+        process_clicked = False
+        if isinstance(plan, ProcessingPlan):
+            AppComponents.processing_plan(plan, processing_service.model)
+            confirmed = True
+            if plan.pending_blocks:
+                confirmed = st.checkbox(
+                    "Confirmo que deseo enviar los bloques pendientes a la API "
+                    "y generar el consumo correspondiente.",
+                    key=f"confirm_api_cost_{plan.pdf_hash}",
+                )
+            process_clicked = st.button(
+                "Confirmar y procesar" if plan.pending_blocks else "Procesar usando caché",
+                type="primary",
+                use_container_width=True,
+                disabled=not confirmed,
+            )
+
         if process_clicked and pdf_file is not None:
             self._process_files(
                 user=user,
@@ -193,6 +251,7 @@ class CatalogApplication:
                 matcher=matcher,
                 pdf_file=pdf_file,
                 excel_file=excel_file,
+                search_field=search_field,
             )
 
         result = st.session_state.get("processing_result")
@@ -208,6 +267,7 @@ class CatalogApplication:
         matcher: ConceptMatcher,
         pdf_file,
         excel_file,
+        search_field: ExcelSearchField,
     ) -> None:
         progress_bar = st.progress(0.0)
         status_box = st.empty()
@@ -235,7 +295,7 @@ class CatalogApplication:
 
             if excel_file is not None:
                 crossed_excel, crossed_df = excel_service.cross_reference_excel(
-                    excel_file.getvalue(), result.catalog, matcher
+                    excel_file.getvalue(), result.catalog, matcher, search_field
                 )
                 st.session_state["crossed_excel"] = crossed_excel
                 st.session_state["crossed_df"] = crossed_df
@@ -262,6 +322,7 @@ class CatalogApplication:
         except Exception as exc:
             st.error(self._safe_error(exc))
         else:
+            st.session_state.pop("processing_plan", None)
             progress_bar.progress(1.0)
             status_box.success("Procesamiento completado")
             st.success("El catálogo está listo para revisión y descarga.")

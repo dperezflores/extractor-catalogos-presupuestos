@@ -7,7 +7,7 @@ import html
 import pandas as pd
 import streamlit as st
 
-from src.domain.models import ProcessingResult, UserIdentity
+from src.domain.models import ProcessingPlan, ProcessingResult, UserIdentity
 
 
 class AppComponents:
@@ -69,6 +69,24 @@ class AppComponents:
         cols[1].metric("Extraídos", extracted)
         cols[2].metric("Revisar", review)
         cols[3].metric("No legibles", unreadable)
+
+    @staticmethod
+    def processing_plan(plan: ProcessingPlan, model: str) -> None:
+        if plan.pending_blocks:
+            st.warning(
+                f"Este PDF tiene {plan.pending_blocks} de {plan.total_blocks} bloques "
+                "pendientes. Al continuar se enviarán a la API y se generará consumo."
+            )
+            st.caption(
+                f"Páginas: {plan.total_pages} · Bloques en caché: "
+                f"{plan.cached_blocks} · Modelo: {model}. El costo exacto depende de "
+                "los tokens procesados y se conocerá al finalizar."
+            )
+        else:
+            st.success(
+                f"Los {plan.total_blocks} bloques ya están guardados en caché. "
+                "No se prevé consumo de API por la extracción."
+            )
 
     @staticmethod
     def data_table(dataframe: pd.DataFrame, title: str) -> None:
