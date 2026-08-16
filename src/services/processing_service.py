@@ -57,12 +57,42 @@ class CatalogProcessingService:
             self._repository.get_completed_block(job.job_id, chunk) is not None
             for chunk in chunks
         )
+        pending_blocks = len(chunks) - cached_blocks
+        cache_schema = self._cache_schema()
+        baseline = self._repository.get_usage_baseline(
+            user_id=user.user_id,
+            model=self._settings.model,
+            detail=self._settings.pdf_detail,
+            schema_version=cache_schema,
+        )
+        estimated_input_tokens = 0
+        estimated_output_tokens = 0
+        estimated_cost_usd = 0.0
+        estimate_sample_blocks = 0
+        if baseline is not None and pending_blocks:
+            estimated_input_tokens = round(
+                baseline.input_tokens_per_block * pending_blocks
+            )
+            estimated_output_tokens = round(
+                baseline.output_tokens_per_block * pending_blocks
+            )
+            estimated_cost_usd = self._calculate_cost(
+                ApiUsage(estimated_input_tokens, estimated_output_tokens)
+            )
+            estimate_sample_blocks = baseline.sample_blocks
+        margin = self._settings.cost_estimate_margin
         return ProcessingPlan(
             pdf_hash=pdf_hash,
             total_pages=chunks[-1].page_end,
             total_blocks=len(chunks),
             cached_blocks=cached_blocks,
-            pending_blocks=len(chunks) - cached_blocks,
+            pending_blocks=pending_blocks,
+            estimated_input_tokens=estimated_input_tokens,
+            estimated_output_tokens=estimated_output_tokens,
+            estimated_cost_usd=estimated_cost_usd,
+            estimated_cost_low_usd=estimated_cost_usd * (1 - margin),
+            estimated_cost_high_usd=estimated_cost_usd * (1 + margin),
+            estimate_sample_blocks=estimate_sample_blocks,
         )
 
     def process(
@@ -82,6 +112,7 @@ class CatalogProcessingService:
         extractor = self._extractor(api_key)
         concepts: list[ExtractedConcept] = []
         total_usage = ApiUsage()
+        current_usage = ApiUsage()
         cached_blocks = 0
         processed_blocks = 0
 
@@ -113,6 +144,7 @@ class CatalogProcessingService:
                 raise
             concepts.extend(result.block.conceptos)
             total_usage += result.usage
+            current_usage += result.usage
             processed_blocks += 1
             if progress:
                 progress(position, len(chunks), f"Bloque {position} guardado")
@@ -125,8 +157,11 @@ class CatalogProcessingService:
             job=job,
             catalog=catalog,
             usage=total_usage,
+            current_usage=current_usage,
             cached_blocks=cached_blocks,
             processed_blocks=processed_blocks,
+            estimated_document_cost_usd=self._calculate_cost(total_usage),
+            estimated_current_cost_usd=self._calculate_cost(current_usage),
         )
 
     def _prepare_job(
@@ -138,11 +173,7 @@ class CatalogProcessingService:
     ) -> tuple[list[PdfChunk], JobRecord, str]:
         chunks = self._chunker.split(pdf_bytes)
         pdf_hash = self._chunker.file_hash(pdf_bytes)
-        cache_schema = (
-            f"{self._settings.schema_version}"
-            f"-c{self._settings.chunk_size}"
-            f"-o{self._settings.chunk_overlap}"
-        )
+        cache_schema = self._cache_schema()
         job = self._repository.get_or_create_job(
             user_id=user.user_id,
             pdf_hash=pdf_hash,
@@ -153,6 +184,19 @@ class CatalogProcessingService:
             total_blocks=len(chunks),
         )
         return chunks, job, pdf_hash
+
+    def _cache_schema(self) -> str:
+        return (
+            f"{self._settings.schema_version}"
+            f"-c{self._settings.chunk_size}"
+            f"-o{self._settings.chunk_overlap}"
+        )
+
+    def _calculate_cost(self, usage: ApiUsage) -> float:
+        return (
+            usage.input_tokens * self._settings.input_price_per_million
+            + usage.output_tokens * self._settings.output_price_per_million
+        ) / 1_000_000
 
     def _extractor(self, api_key: str) -> OpenAICatalogExtractor:
         return OpenAICatalogExtractor(

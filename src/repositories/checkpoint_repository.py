@@ -17,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     delete,
+    func,
     insert,
     select,
     update,
@@ -30,6 +31,7 @@ from src.domain.models import (
     JobRecord,
     JobStatus,
     PdfChunk,
+    UsageBaseline,
 )
 
 
@@ -72,6 +74,16 @@ class CheckpointRepository(ABC):
 
     @abstractmethod
     def list_jobs(self, user_id: str, limit: int = 50) -> list[JobRecord]: ...
+
+    @abstractmethod
+    def get_usage_baseline(
+        self,
+        *,
+        user_id: str,
+        model: str,
+        detail: str,
+        schema_version: str,
+    ) -> UsageBaseline | None: ...
 
 
 class SqlCheckpointRepository(CheckpointRepository):
@@ -323,6 +335,45 @@ class SqlCheckpointRepository(CheckpointRepository):
                 self._to_job(row, self._count_completed(connection, row["job_id"]))
                 for row in rows
             ]
+
+    def get_usage_baseline(
+        self,
+        *,
+        user_id: str,
+        model: str,
+        detail: str,
+        schema_version: str,
+    ) -> UsageBaseline | None:
+        """Promedia el consumo real de los bloques comparables del mismo usuario."""
+        source = self._blocks.join(
+            self._jobs, self._blocks.c.job_id == self._jobs.c.job_id
+        )
+        statement = (
+            select(
+                func.count(self._blocks.c.block_index).label("sample_blocks"),
+                func.avg(self._blocks.c.input_tokens).label("avg_input"),
+                func.avg(self._blocks.c.output_tokens).label("avg_output"),
+            )
+            .select_from(source)
+            .where(
+                (self._jobs.c.user_id == user_id)
+                & (self._jobs.c.model == model)
+                & (self._jobs.c.detail == detail)
+                & (self._jobs.c.schema_version == schema_version)
+                & (self._blocks.c.status == BlockStatus.COMPLETED.value)
+                & (self._blocks.c.input_tokens > 0)
+            )
+        )
+        with self._engine.connect() as connection:
+            row = connection.execute(statement).mappings().one()
+        sample_blocks = int(row["sample_blocks"] or 0)
+        if sample_blocks == 0:
+            return None
+        return UsageBaseline(
+            input_tokens_per_block=float(row["avg_input"] or 0),
+            output_tokens_per_block=float(row["avg_output"] or 0),
+            sample_blocks=sample_blocks,
+        )
 
     def delete_job(self, job_id: str, user_id: str) -> None:
         """Elimina un trabajo únicamente si pertenece al usuario indicado."""

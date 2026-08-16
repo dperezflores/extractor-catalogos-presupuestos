@@ -337,6 +337,12 @@ class CatalogApplication:
             f"Tokens de entrada: {result.usage.input_tokens:,} · "
             f"Tokens de salida: {result.usage.output_tokens:,}"
         )
+        st.caption(
+            f"Costo estimado del documento: "
+            f"US${result.estimated_document_cost_usd:.2f} · "
+            f"Consumo estimado en esta ejecución: "
+            f"US${result.estimated_current_cost_usd:.2f}"
+        )
         catalog_df = st.session_state.get("catalog_df")
         if isinstance(catalog_df, pd.DataFrame):
             AppComponents.data_table(catalog_df, "Catálogo extraído")

@@ -25,4 +25,13 @@ def test_repository_recovers_completed_block(tmp_path: Path) -> None:
     assert cached is not None
     assert cached[1].input_tokens == 10
     assert repository.list_jobs("user-1")[0].completed_blocks == 1
-
+    baseline = repository.get_usage_baseline(
+        user_id="user-1",
+        model="gpt-5.6-luna",
+        detail="high",
+        schema_version="v1",
+    )
+    assert baseline is not None
+    assert baseline.sample_blocks == 1
+    assert baseline.input_tokens_per_block == 10
+    assert baseline.output_tokens_per_block == 5

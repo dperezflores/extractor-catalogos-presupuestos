@@ -3,6 +3,8 @@
     --orange-soft: #FF7D42;
     --charcoal: #362D32;
     --blue: #00304F;
+    --progress-blue: #1976D2;
+    --progress-track: #DCEAF7;
     --surface: #FFFFFF;
     --surface-soft: #F7F4F2;
     --border: #E7DED9;
@@ -141,6 +143,16 @@ div[data-testid="stDataFrame"] {
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
+}
+
+div[data-testid="stProgress"] div[role="progressbar"],
+div[data-testid="stProgress"] div[data-baseweb="progress-bar"] > div {
+    background-color: var(--progress-track) !important;
+}
+
+div[data-testid="stProgress"] div[role="progressbar"] > div,
+div[data-testid="stProgress"] div[data-baseweb="progress-bar"] > div > div {
+    background-color: var(--progress-blue) !important;
 }
 
 .login-shell {

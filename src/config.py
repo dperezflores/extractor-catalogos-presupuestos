@@ -30,6 +30,9 @@ class AppSettings:
     allowed_emails: tuple[str, ...] = ()
     database_url: str = "sqlite:///data/checkpoints.db"
     schema_version: str = "catalog-v1"
+    input_price_per_million: float = 0.20
+    output_price_per_million: float = 1.20
+    cost_estimate_margin: float = 0.30
     css_path: Path = PROJECT_ROOT / "assets" / "styles.css"
 
     @classmethod
@@ -62,6 +65,19 @@ class AppSettings:
             auth_required=bool(application.get("auth_required", defaults.auth_required)),
             allowed_emails=allowed,
             database_url=str(database.get("url", defaults.database_url)),
+            input_price_per_million=float(
+                application.get(
+                    "input_price_per_million", defaults.input_price_per_million
+                )
+            ),
+            output_price_per_million=float(
+                application.get(
+                    "output_price_per_million", defaults.output_price_per_million
+                )
+            ),
+            cost_estimate_margin=float(
+                application.get("cost_estimate_margin", defaults.cost_estimate_margin)
+            ),
         )
 
     def validate(self) -> None:
@@ -78,3 +94,7 @@ class AppSettings:
             "max",
         }:
             raise ValueError("reasoning_effort no es válido.")
+        if self.input_price_per_million < 0 or self.output_price_per_million < 0:
+            raise ValueError("Las tarifas por millón de tokens no pueden ser negativas.")
+        if not 0 <= self.cost_estimate_margin <= 1:
+            raise ValueError("El margen de estimación debe estar entre 0 y 1.")

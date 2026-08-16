@@ -77,11 +77,25 @@ class AppComponents:
                 f"Este PDF tiene {plan.pending_blocks} de {plan.total_blocks} bloques "
                 "pendientes. Al continuar se enviarán a la API y se generará consumo."
             )
-            st.caption(
-                f"Páginas: {plan.total_pages} · Bloques en caché: "
-                f"{plan.cached_blocks} · Modelo: {model}. El costo exacto depende de "
-                "los tokens procesados y se conocerá al finalizar."
-            )
+            if plan.estimate_sample_blocks:
+                st.info(
+                    f"Costo estimado: US${plan.estimated_cost_usd:.2f} "
+                    f"(rango aproximado: US${plan.estimated_cost_low_usd:.2f}–"
+                    f"US${plan.estimated_cost_high_usd:.2f})."
+                )
+                st.caption(
+                    f"Tokens estimados: {plan.estimated_input_tokens:,} de entrada y "
+                    f"{plan.estimated_output_tokens:,} de salida · Basado en "
+                    f"{plan.estimate_sample_blocks} bloques históricos comparables · "
+                    f"Páginas: {plan.total_pages} · Bloques en caché: "
+                    f"{plan.cached_blocks} · Modelo: {model}."
+                )
+            else:
+                st.caption(
+                    f"Páginas: {plan.total_pages} · Bloques en caché: "
+                    f"{plan.cached_blocks} · Modelo: {model}. Todavía no hay historial "
+                    "suficiente para estimar el costo."
+                )
         else:
             st.success(
                 f"Los {plan.total_blocks} bloques ya están guardados en caché. "
