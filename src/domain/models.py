@@ -31,6 +31,11 @@ class BlockStatus(StrEnum):
     ERROR = "ERROR"
 
 
+class ExcelSearchField(StrEnum):
+    KEY = "Clave (columna A)"
+    DESCRIPTION = "Concepto o descripción (columna B)"
+
+
 class ExtractedConcept(BaseModel):
     """Respuesta exacta solicitada al modelo para una fila del presupuesto."""
 
@@ -141,6 +146,15 @@ class ProcessingResult:
     usage: ApiUsage
     cached_blocks: int
     processed_blocks: int
+
+
+@dataclass(frozen=True, slots=True)
+class ProcessingPlan:
+    pdf_hash: str
+    total_pages: int
+    total_blocks: int
+    cached_blocks: int
+    pending_blocks: int
 
 
 ProgressCallback = Callable[[int, int, str], None]
