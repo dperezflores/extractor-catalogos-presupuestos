@@ -7,6 +7,7 @@ from io import BytesIO
 
 import pandas as pd
 from openpyxl import Workbook, load_workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
@@ -61,7 +62,11 @@ class ExcelService:
 
         for row_index, values in enumerate(dataframe.itertuples(index=False), start=2):
             for column_index, value in enumerate(values, start=1):
-                sheet.cell(row=row_index, column=column_index, value=value)
+                sheet.cell(
+                    row=row_index,
+                    column=column_index,
+                    value=self._excel_safe_value(value),
+                )
 
         if len(dataframe) > 0:
             table = Table(displayName="CatalogoExtraido", ref=f"A1:G{len(dataframe) + 1}")
@@ -169,3 +174,10 @@ class ExcelService:
             target.alignment = copy(source.alignment)
             target.number_format = source.number_format
             target.protection = copy(source.protection)
+
+    @staticmethod
+    def _excel_safe_value(value):
+        """Sustituye controles no válidos en XML sin alterar números ni celdas vacías."""
+        if isinstance(value, str):
+            return ILLEGAL_CHARACTERS_RE.sub(" ", value)
+        return value
