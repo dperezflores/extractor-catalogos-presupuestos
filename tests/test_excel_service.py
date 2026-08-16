@@ -38,6 +38,20 @@ def test_catalog_excel_has_expected_columns() -> None:
     sheet = load_workbook(BytesIO(content)).active
     assert sheet["A1"].value == "Clave del concepto"
     assert sheet["G1"].value == "Nivel de confianza"
+    assert sheet["H1"].value == "Ubicación en el PDF"
+    assert sheet["H2"].value is None
+
+
+def test_catalog_excel_reports_location_only_for_manual_review() -> None:
+    catalog = sample_catalog()
+    catalog[0].status = ExtractionStatus.REVIEW
+    catalog[0].source_page_start = 17
+    catalog[0].source_page_end = 20
+
+    content = ExcelService().catalog_to_excel(catalog)
+    sheet = load_workbook(BytesIO(content)).active
+
+    assert sheet["H2"].value == "Páginas 17–20"
 
 
 def test_catalog_excel_replaces_illegal_control_characters() -> None:
